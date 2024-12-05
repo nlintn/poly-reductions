@@ -37,7 +37,7 @@ lemma Set_List_rel_eqI[intro]:
 
 lemma Set_List_rel_eqD[dest]:
   assumes "Set_List_rel_eq s xs"
-  shows "s = set xs" 
+  shows "s = set xs"
   using assms unfolding Set_List_rel_eq_def Set_List_relD by (auto simp: rel_set_eq)
 
 lemma Set_List_rel_eq_iff[simp]: "Set_List_rel_eq = Set_List_rel (=)"
@@ -55,6 +55,11 @@ lemma n_Set_List_rel_eqE[elim]:
   assumes "n_Set_List_rel_eq n s xs"
   obtains "Set_List_rel_eq s xs" "card s = n"
   using assms unfolding n_Set_List_rel_eq_def by simp
+
+lemma Set_List_rel_eq_if_n_Set_List_rel_eq:
+  assumes "n_Set_List_rel_eq n s xs"
+  shows "Set_List_rel_eq s xs"
+  using assms by blast
 
 definition
   "Sat_List_rel ≡ list_all2 Set_List_rel_eq"
@@ -135,17 +140,6 @@ definition
     in p6"
 
 definition
-  "si_un_fst_exec_tr F ≡
-    let
-      p1 = enumerate_tr 0 F;
-      p2 = map_tr (λ(xsa, xsb). map_tr (λx. (x, xsa)) xsb) p1;
-      p3 = map_tr (λxs. product_tr xs xs) p2;
-      p4 = map_tr (λxs. filter_tr (λ((a, _), (b, _)). a ≠ b) xs) p3;
-      p5 = concat_tr p4;
-      p6 = map_tr (λ(a, b).  [a, b]) p5
-    in p6"
-
-definition
   "IS_List_rel ≡ Set_List_rel (n_Set_List_rel_eq 2)"
 
 lemma IS_List_rel_iff[simp]: "IS_List_rel = Set_List_rel (n_Set_List_rel_eq 2)"
@@ -218,7 +212,7 @@ lemma filter_pred_rel[transfer_rule]: "(Set_List_rel_eq ===> Set_List_rel (λa b
 lemma union_append_rel[transfer_rule]: "(Set_List_rel r ===> Set_List_rel r ===> Set_List_rel r) (∪) (@)"
   by (fastforce simp: rel_set_def)
 
-lemma si_un_fst_rel[transfer_rule]: "(list_all2 (n_Set_List_rel_eq 3) ===> IS_List_rel) si_un_fst si_un_fst_exec"
+lemma si_un_fst_rel[transfer_rule]: "(list_all2 (n_Set_List_rel_eq 3) ===> Set_List_rel (n_Set_List_rel_eq 2)) si_un_fst si_un_fst_exec"
 proof -
   have [transfer_rule]: "(list_all2 (n_Set_List_rel_eq 3) ===> n_Sat_List_enum_rel 3) (enumerate 0) (enumerate 0)"
     by (auto simp: list_all2_conv_all_nth n_Set_List_enum_rel_eqI nth_enumerate_eq)
@@ -235,7 +229,7 @@ proof -
   qed
   have [transfer_rule]: "(n_Sat_List_rel 3 ===> n_Sat_List_rel (3 * 3)) (map (λs. s × s)) (map (λl. List.product l l))"
     unfolding n_Sat_List_rel_iff by transfer_prover
-  have [transfer_rule]: "(n_Sat_List_rel (3 * 3) ===> Sat_List_rel_prod_diff)
+  have [transfer_rule]: "(n_Sat_List_rel (3 * 3) ===> list_all2 (Set_List_rel (λa b. a = b ∧ fst a ≠ snd a)))
     (map (Set.filter (λ((a, _), (b, _)). a ≠ b)))
     (map (filter (λ((a, _), (b, _)). a ≠ b)))" (is "_ (map (filter ?f4)) (map (Set.filter ?f4))")
   proof -
@@ -244,12 +238,13 @@ proof -
       by (fastforce simp: Set.filter_def rel_set_eq list.pred_set def)
     have "(Sat_List_rel ===> Sat_List_rel_prod_diff) (map (Set.filter f)) (map (filter f))"
       unfolding Sat_List_rel_iff Sat_List_rel_prod_diff_iff by transfer_prover
-    from rel_fun_mono[OF this, unfolded def] show ?thesis
-      using Sat_List_rel_if_n_Sat_List_rel by blast
+    from rel_fun_mono[OF this, unfolded def, of "n_Sat_List_rel (3 * 3)" "list_all2 Set_List_rel_eq_prod_diff"] show ?thesis
+      unfolding Sat_List_rel_prod_diff_iff[unfolded Set_List_rel_eq_prod_diff_iff, symmetric]
+      using list_all2_mono[where P="n_Set_List_rel_eq (3 * 3)" and Q=Set_List_rel_eq] by fastforce
   qed
-  have [transfer_rule]: "(Sat_List_rel_prod_diff ===> Set_List_rel_eq_prod_diff) (λs. ⋃ (set s)) concat"
+  have [transfer_rule]: "(list_all2 (Set_List_rel (λa b. a = b ∧ fst a ≠ snd a)) ===> Set_List_rel (λa b. a = b ∧ fst a ≠ snd a)) (λs. ⋃ (set s)) concat"
     unfolding Sat_List_rel_prod_diff_iff Set_List_rel_eq_prod_diff_iff by transfer_prover
-  have [transfer_rule]: "(Set_List_rel_eq_prod_diff ===> IS_List_rel)
+  have [transfer_rule]: "(Set_List_rel (λa b. a = b ∧ fst a ≠ snd a) ===> Set_List_rel (n_Set_List_rel_eq 2))
     (image (λ(a, b). {a, b}))
     (map (λ(a, b). [a, b]))" (is "_ (map ?fs6) (image ?fl6)")
   proof -
@@ -257,7 +252,7 @@ proof -
     have [transfer_rule]: "((λa b. a = b ∧ fst a ≠ snd a) ===> n_Set_List_rel_eq 2) fl fs"
       by (auto simp: def rel_fun_def rel_set_def)
     show ?thesis
-      unfolding def[symmetric] Set_List_rel_eq_prod_diff_def IS_List_rel_iff by transfer_prover
+      unfolding def[symmetric] Set_List_rel_eq_prod_diff_def by transfer_prover
   qed
   show ?thesis
     unfolding si_un_fst'_eq si_un_fst'_def si_un_fst'_prod_def si_un_fst_exec_def Let_def
@@ -301,19 +296,7 @@ definition
       p7 = map (λ(a, b). [a, b]) p6
     in p7"
 
-definition
-  "si_un_snd_exec_tr F ≡
-    let
-      p1 = enumerate_tr 0 F;
-      p2 = map_tr (λ(xsa, xsb). map_tr (λx. (x, xsa)) xsb) p1;
-      p3 = product_tr p2 p2;
-      p4 = map_tr (λ(a, b). product_tr a b) p3;
-      p5 = concat_tr p4;
-      p6 = filter_tr (λ((a, _), (b, _)). conflict_exec a b) p5;
-      p7 = map_tr (λ(a, b). [a, b]) p6
-    in p7"
-
-lemma si_un_snd_rel[transfer_rule]: "(n_Sat_List_rel 3 ===> IS_List_rel) si_un_snd si_un_snd_exec"
+lemma si_un_snd_rel[transfer_rule]: "(n_Sat_List_rel 3 ===> Set_List_rel (n_Set_List_rel_eq 2)) si_un_snd si_un_snd_exec"
 proof -
   have [transfer_rule]: "(n_Sat_List_rel 3 ===> n_Sat_List_enum_rel 3) (enumerate 0) (enumerate 0)"
     unfolding n_Sat_List_rel_iff n_Sat_List_enum_rel_iff
@@ -333,20 +316,21 @@ proof -
       list_all2 (rel_prod (n_Set_List_rel_eq 3) (n_Set_List_rel_eq 3)))
       List.product List.product"
     unfolding n_Sat_List_rel_iff by transfer_prover
-  have [transfer_rule]: "(list_all2 (rel_prod (n_Set_List_rel_eq 3) (n_Set_List_rel_eq 3)) ===> n_Sat_List_rel (3 * 3))
+  have [transfer_rule]: "(list_all2 (rel_prod (n_Set_List_rel_eq 3) (n_Set_List_rel_eq 3)) ===> list_all2 (n_Set_List_rel_eq (3 * 3)))
       (map (λ(a, b). a × b)) (map (λ(a, b). List.product a b))"
-    unfolding n_Sat_List_rel_iff by transfer_prover
-  have [transfer_rule]: "(n_Sat_List_rel (3 * 3) ===> Set_List_rel_eq) (λs. ⋃ (set s)) concat"
+    by transfer_prover
+  have [transfer_rule]: "(list_all2 (n_Set_List_rel_eq(3 * 3)) ===> Set_List_rel_eq) (λs. ⋃ (set s)) concat"
   proof -
-    have "(Sat_List_rel ===> Set_List_rel_eq) (λs. ⋃ (set s)) concat"
+    have "(list_all2 Set_List_rel_eq ===> Set_List_rel_eq) (λs. ⋃ (set s)) concat"
       unfolding Sat_List_rel_iff Set_List_rel_eq_def by transfer_prover
-    from rel_fun_mono[OF this] show ?thesis
-      using Sat_List_rel_if_n_Sat_List_rel by blast
+    from rel_fun_mono[OF this, of "list_all2 (n_Set_List_rel_eq (3 * 3))" Set_List_rel_eq] show ?thesis
+      using list_all2_mono[where P="n_Set_List_rel_eq (3 * 3)" and Q=Set_List_rel_eq]
+      by fast
   qed
   have [transfer_rule]: "(Set_List_rel_eq ===> Set_List_rel (λa b. a = b ∧ conflict (fst (fst a)) (fst (snd a))))
       (Set.filter (λ((a, _), (b, _)). conflict a b)) (filter (λ((a, _), (b, _)). conflict a b))"
     unfolding Set_List_rel_eq_iff using filter_pred_rel by (fastforce simp: case_prod_beta')
-  have [transfer_rule]: "(Set_List_rel (λa b. a = b ∧ conflict (fst (fst a)) (fst (snd a))) ===> IS_List_rel)
+  have [transfer_rule]: "(Set_List_rel (λa b. a = b ∧ conflict (fst (fst a)) (fst (snd a))) ===> Set_List_rel (n_Set_List_rel_eq 2))
       (image (λ(a, b). {a, b})) (map (λ(a, b). [a, b]))" (is "_ (image ?fs6) (map ?fl6)")
   proof -
     define fs fl where def: "fs = ?fs6" "fl = ?fl6"
@@ -355,7 +339,7 @@ proof -
     then have [transfer_rule]: "((λa b. a = b ∧ conflict (fst (fst a)) (fst (snd a))) ===> n_Set_List_rel_eq 2) fs fl"
       by (fastforce simp: def rel_fun_def rel_set_def)
     show ?thesis
-      unfolding def[symmetric] Set_List_rel_eq_prod_diff_def IS_List_rel_iff by transfer_prover
+      unfolding def[symmetric] Set_List_rel_eq_prod_diff_def by transfer_prover
   qed
   show ?thesis
     unfolding si_un_snd'_eq si_un_snd'_def si_un_snd'_prod_def si_un_snd_exec_def conflict_exec_eq Let_def
@@ -363,17 +347,13 @@ proof -
 qed
 
 lemma [transfer_rule]: "(n_Set_List_rel_eq n ===> (=)) (λs. card s = 3) (λxs. length (remdups xs) = 3)"
-  by (auto elim!: n_Set_List_rel_eqE simp: length_remdups_card_conv rel_set_eq)
+  by (auto simp: length_remdups_card_conv rel_set_eq)
 
-lemma [transfer_rule]: "(list_all2 (n_Set_List_rel_eq n) ===> (=)) (list_all (λs. card s = 3)) (list_all (λxs. length (remdups xs) = 3))"
-  apply (intro rel_funI)
-  subgoal for x y by (induction x y rule: list_all2_induct) (auto simp: card_set dest!: Set_List_rel_eqD)
-  done
-  
 lemma [transfer_rule]: "(list_all2 (n_Set_List_rel_eq n) ===> (=)) (λF. ∀cls ∈ set F. card cls = 3) (list_all (λxs. length (remdups xs) = 3))"
-  apply (intro rel_funI)
-  subgoal for x y by (induction x y rule: list_all2_induct) (auto simp: length_remdups_card_conv)
-  done
+proof fix x::"'a set list" and y::"'a list list" 
+  show "list_all2 (n_Set_List_rel_eq n) x y ⟹ (∀cls∈set x. card cls = 3) = list_all (λxs. length (remdups xs) = 3) y"
+    by (induction x y rule: list_all2_induct) (auto simp: length_remdups_card_conv)
+qed
 
 definition
   "sat_is_exec F ≡ if list_all (λxs. length (remdups xs) = 3) F
@@ -383,13 +363,36 @@ definition
 lemma [transfer_rule]: "rel_prod (Set_List_rel r) (=) ({}, 1) ([], 1)"
   by (simp add: rel_set_def)
 
-declare si_un_snd_rel[unfolded n_Sat_List_rel_iff IS_List_rel_iff, transfer_rule]
-declare si_un_fst_rel[unfolded n_Sat_List_rel_iff IS_List_rel_iff, transfer_rule]
+declare si_un_fst_rel[unfolded n_Sat_List_rel_iff, transfer_rule]
+declare si_un_snd_rel[unfolded n_Sat_List_rel_iff, transfer_rule]
 
 lemma "(n_Sat_List_rel 3 ===> rel_prod IS_List_rel (=)) sat_is sat_is_exec"
   unfolding sat_is_def[unfolded si_un_fst_def[symmetric] si_un_snd_def[symmetric]] sat_is_exec_def
     n_Sat_List_rel_iff IS_List_rel_iff
   by transfer_prover
+
+definition
+  "si_un_fst_exec_tr F ≡
+    let
+      p1 = enumerate_tr 0 F;
+      p2 = map_tr (λ(xsa, xsb). map_tr (λx. (x, xsa)) xsb) p1;
+      p3 = map_tr (λxs. product_tr xs xs) p2;
+      p4 = map_tr (λxs. filter_tr (λ((a, _), (b, _)). a ≠ b) xs) p3;
+      p5 = concat_tr p4;
+      p6 = map_tr (λ(a, b).  [a, b]) p5
+    in p6"
+
+definition
+  "si_un_snd_exec_tr F ≡
+    let
+      p1 = enumerate_tr 0 F;
+      p2 = map_tr (λ(xsa, xsb). map_tr (λx. (x, xsa)) xsb) p1;
+      p3 = product_tr p2 p2;
+      p4 = map_tr (λ(a, b). product_tr a b) p3;
+      p5 = concat_tr p4;
+      p6 = filter_tr (λ((a, _), (b, _)). conflict_exec a b) p5;
+      p7 = map_tr (λ(a, b). [a, b]) p6
+    in p7"
 
 definition
   "sat_is_exec_tr F ≡ if list_all_tr (λxs. length_tr (remdups_tr xs) = 3) F
